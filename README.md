@@ -9,7 +9,7 @@
 <br />
 <div align="center">
   <a href="https://github.com/q16q/pet">
-    <img src="https://i.imgur.com/a4jFxEI.png" alt="Logo" width="256" height="86">
+    <img src=".assets/logo.png" alt="Logo" width="256" height="256">
   </a>
   <h3 align="center">PET mod loader for KoboldKare</h3>
 
@@ -23,7 +23,7 @@
 </div>
 
 >[!WARNING]
->PET is still in development; expect bugs, crashes and incompatibilities
+>PET is still in development; expect bugs, crashes and incompatibilities!
 
 ### About Project
 **PET (Parallel-Engaging Threaded)** mod loader implementation is a collection of HarmonyX patches that allow KobaldKare to load multiple mods at once using asynchronous C# Tasks, rather than loading them one by one.

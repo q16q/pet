@@ -19,7 +19,7 @@ using System.IO;
 
 namespace Pet
 {
-    [BepInPlugin("dev.q16.plugins.pet", "pet", "1.0.0")]
+    [BepInPlugin("dev.q16.plugins.pet", "pet", "1.0.2")]
     public class Pet : BaseUnityPlugin
     {
         private void Awake()
@@ -172,7 +172,6 @@ namespace Pet.Patches
                 }
                 Debug.Log($"Waiting for post-processors\n{Pet._pendingPostProcessors}");
                 Debug.Log($"Loaded {loadedModCount} out of {modCount} mods");
-                await Pet._allPostProcessorsLoaded.Task;
                 Debug.Log("! ! ! ! ! ! --- finished loading");
                 CenterScreenText.centerText.text = "";
                 FieldInfo finishedLoadingField = AccessTools.Field(typeof(ModManager), "finishedLoading");
@@ -210,11 +209,13 @@ namespace Pet.Patches
             }
             finally
             {
+                await Pet.modMutex.WaitAsync();
                 var result = Interlocked.Decrement(ref Pet._pendingPostProcessors);
                 if (result == 0)
                 {
                     Pet._allPostProcessorsLoaded.TrySetResult(true);
                 }
+                Pet.modMutex.Release();
             }
         }
 
@@ -237,7 +238,7 @@ namespace Pet.Patches
             var modPostProcessors = (List<ModPostProcessor>)Pet.MMmodPostProcessors.GetValue(modManager);
             var cancelTokenSources = (List<CancellationTokenSource>)Pet.MMcancelTokenSources.GetValue(modManager);
 
-            Debug.Log($"MASAAPatched: Loading {__instance.info.title}");
+            // Debug.Log($"MASAAPatched: Loading {__instance.info.title}");
             await modMutex.WaitAsync();
             try
             {
@@ -254,15 +255,12 @@ namespace Pet.Patches
 
                         Pet._pendingPostProcessors = total;
                         Pet._allPostProcessorsLoaded = new TaskCompletionSource<bool>();
-                        foreach (var modPostProcessor in earlyModPostProcessors)
-                        {
-                            _ = RunPostProcessor(modPostProcessor, cancelTokenSource, __instance);
-                        }
 
-                        foreach (var modPostProcessor in modPostProcessors)
-                        {
-                            _ = RunPostProcessor(modPostProcessor, cancelTokenSource, __instance);
-                        }
+                        var allProcessors = earlyModPostProcessors.Concat(modPostProcessors);
+                        var tasks = allProcessors.Select(modPostProcessor =>
+                            RunPostProcessor(modPostProcessor, cancelTokenSource, __instance));
+
+                        Task.WhenAll(tasks);  // Parallel execution + proper await
                     }
                     finally
                     {
@@ -283,7 +281,7 @@ namespace Pet.Patches
             catch (Exception ex)
             {
                 Debug.LogException(ex);
-                Debug.LogError((object)$"Failed to set active state for mod {__instance.info.title} [{__instance.info.publishedFileId}]");
+                // Debug.LogError((object)$"Failed to set active state for mod {__instance.info.title} [{__instance.info.publishedFileId}]");
                 Pet.MMlastException.SetValue(modManager, ex);
                 Pet.MAcausedException.SetValue(__instance, true);
                 Pet.MMchanged.SetValue(modManager, true);
@@ -319,7 +317,7 @@ namespace Pet.Patches
             var earlyModPostProcessors = (List<ModPostProcessor>)Pet.MMearlyModPostProcessors.GetValue(modManager);
             var modPostProcessors = (List<ModPostProcessor>)Pet.MMmodPostProcessors.GetValue(modManager);
 
-            Debug.Log($"MABSAAPatched: Loading {__instance.info.title}");
+            // Debug.Log($"MABSAAPatched: Loading {__instance.info.title}");
             await modMutex.WaitAsync();
             try
             {
@@ -344,7 +342,7 @@ namespace Pet.Patches
             catch (Exception ex)
             {
                 Debug.LogException(ex);
-                Debug.LogError((object)$"Failed to make assets available for mod {__instance.info.title} [{__instance.info.publishedFileId}]");
+                // Debug.LogError((object)$"Failed to make assets available for mod {__instance.info.title} [{__instance.info.publishedFileId}]");
                 Pet.MMlastException.SetValue(modManager, ex);
                 Pet.MABcausedException.SetValue(__instance, true);
                 Pet.MMchanged.SetValue(modManager, true);
@@ -394,7 +392,7 @@ namespace Pet.Patches
             catch (Exception ex)
             {
                 Debug.LogException(ex);
-                Debug.LogError((object)$"SETLOADED/MA: Failed to set active state for mod {__instance.info.title} [{__instance.info.publishedFileId}].");
+                // Debug.LogError((object)$"SETLOADED/MA: Failed to set active state for mod {__instance.info.title} [{__instance.info.publishedFileId}].");
                 Pet.MMlastException.SetValue(modManager, ex);
                 Pet.MAcausedException.SetValue(__instance, true);
                 Pet.MMchanged.SetValue(modManager, true);
@@ -441,7 +439,7 @@ namespace Pet.Patches
             catch (Exception ex)
             {
                 Debug.LogException(ex);
-                Debug.LogError((object)$"SETLOADED/MAB: Failed to set loaded state for mod {__instance.info.title} [{__instance.info.publishedFileId}].");
+                // Debug.LogError((object)$"SETLOADED/MAB: Failed to set loaded state for mod {__instance.info.title} [{__instance.info.publishedFileId}].");
                 Pet.MMlastException.SetValue(modManager, ex);
                 Pet.MABcausedException.SetValue(__instance, true);
                 Pet.MMchanged.SetValue(modManager, true);
@@ -586,7 +584,7 @@ namespace Pet.Patches
             }
             catch (Exception ex)
             {
-                Debug.LogError($"Failed to load bundle for {__instance.info.title} [{__instance.info.publishedFileId}].");
+                // Debug.LogError($"Failed to load bundle for {__instance.info.title} [{__instance.info.publishedFileId}].");
                 Debug.LogException(ex);
 
                 Pet.MABcausedException.SetValue(__instance, true);
@@ -623,6 +621,23 @@ namespace Pet.Patches
             Addressables.RemoveResourceLocator(locator);
             Pet.MAloaded.SetValue(__instance, false);
             Pet.MAlocator.SetValue(__instance, (IResourceLocator)null);
+        }
+    }
+
+    [HarmonyPatch(
+        typeof(UnityEngine.Object),
+        "GetName"
+    )]
+    public static class ObjectGetNamePatch
+    {
+        [HarmonyPrefix]
+        static bool Prefix(UnityEngine.Object __instance, ref string __result, UnityEngine.Object obj)
+        {
+            if (obj == null)
+            {
+                return false;
+            }
+            return true;
         }
     }
 }
