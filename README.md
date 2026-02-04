@@ -1,12 +1,4 @@
 <a id="readme-top"></a>
-
-[![Contributors][contributors-shield]][contributors-url]
-[![Forks][forks-shield]][forks-url]
-[![Stargazers][stars-shield]][stars-url]
-[![Issues][issues-shield]][issues-url]
-[![Unlicense License][license-shield]][license-url]
-
-<br />
 <div align="center">
   <a href="https://github.com/q16q/pet">
     <img src=".assets/logo.png" alt="Logo" width="256" height="256">
